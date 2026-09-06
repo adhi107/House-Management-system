@@ -158,9 +158,16 @@ export const tenantApi = {
 // Rent & Payments
 export const rentApi = {
   listInvoices: (params?: object) => api.get('/rent/invoices', { params }),
+  getInvoice: (id: string) => api.get(`/rent/invoices/${id}`),
+  createInvoice: (data: object) => api.post('/rent/invoices', data),
   generateMonthly: (data: object) => api.post('/rent/generate', data),
   recordPayment: (data: object) => api.post('/rent/payments', data),
   listPayments: (params?: object) => api.get('/rent/payments', { params }),
+  reportPayment: (invoiceId: string, data: object) => api.post(`/rent/invoices/${invoiceId}/report-payment`, data),
+  verifyPayment: (invoiceId: string, data: object) => api.post(`/rent/invoices/${invoiceId}/verify-payment`, data),
+  updateInvoice: (invoiceId: string, data: object) => api.patch(`/rent/invoices/${invoiceId}`, data),
+  deleteInvoice: (invoiceId: string) => api.delete(`/rent/invoices/${invoiceId}`),
+  sendReminders: (data: object) => api.post('/rent/remind', data),
 }
 
 // Maintenance
@@ -197,6 +204,8 @@ export const notificationApi = {
   list: () => api.get('/notifications'),
   markRead: (id: string) => api.put(`/notifications/${id}/read`),
   markAllRead: () => api.put('/notifications/mark-all-read'),
+  delete: (id: string) => api.delete(`/notifications/${id}`),
+  clearAll: () => api.delete('/notifications'),
 }
 
 // Announcements
@@ -204,3 +213,16 @@ export const announcementApi = {
   list: () => api.get('/announcements'),
   create: (data: object) => api.post('/announcements', data),
 }
+
+// SMTP & Email Gateway
+export const smtpApi = {
+  getAdminConfig: () => api.get('/smtp/admin'),
+  updateAdminConfig: (data: object) => api.put('/smtp/admin', data),
+  testAdminSmtp: (data: object) => api.post('/smtp/admin/test', data),
+  getOwnerConfig: () => api.get('/smtp/owner'),
+  updateOwnerConfig: (data: object) => api.put('/smtp/owner', data),
+  testOwnerSmtp: (data: object) => api.post('/smtp/owner/test', data),
+  sendOwnerEmail: (data: object) => api.post('/smtp/owner/send', data),
+  getOwnerLogs: () => api.get('/smtp/owner/logs'),
+}
+

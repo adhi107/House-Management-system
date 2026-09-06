@@ -4,7 +4,7 @@ import {
   Home, Building2, Users, CreditCard, Wrench, MoreHorizontal,
   FileText, BarChart2, Bell, Settings, LogOut, ChevronLeft, ChevronRight,
   DollarSign, Zap, FileCheck, Megaphone, TrendingUp, PanelLeft,
-  ShieldCheck, Search, Sparkles, Building, ScrollText, ArrowLeft
+  ShieldCheck, Search, Sparkles, Building, ScrollText, ArrowLeft, Mail
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { Avatar } from '../ui'
@@ -43,6 +43,7 @@ const OWNER_SECTIONS: NavGroup[] = [
       { to: '/owner/maintenance', icon: Wrench, label: 'Maintenance' },
       { to: '/owner/documents', icon: FileText, label: 'Documents' },
       { to: '/owner/announcements', icon: Megaphone, label: 'Announcements' },
+      { to: '/owner/smtp', icon: Mail, label: 'Email & SMTP' },
       { to: '/owner/reports', icon: BarChart2, label: 'Reports & Analytics' },
     ],
   },
@@ -90,6 +91,7 @@ const SUPERADMIN_SECTIONS: NavGroup[] = [
   {
     title: 'GOVERNANCE',
     items: [
+      { to: '/super-admin/smtp', icon: Mail, label: 'Mail SMTP Gateway' },
       { to: '/super-admin/audit-logs', icon: ScrollText, label: 'Audit Logs' },
       { to: '/super-admin/settings', icon: Settings, label: 'Platform Settings' },
     ],
@@ -366,11 +368,35 @@ export function DesktopTopBar() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const [unreadCount, setUnreadCount] = useState<number>(0)
+
+  const loadUnread = async () => {
+    try {
+      const { notificationApi } = await import('../../api/client')
+      const res = await notificationApi.list()
+      setUnreadCount(res.data?.unread_count || 0)
+    } catch {
+      //
+    }
+  }
+
+  React.useEffect(() => {
+    loadUnread()
+    const interval = setInterval(loadUnread, 20000)
+    return () => clearInterval(interval)
+  }, [location.pathname])
 
   const isRootDashboard =
     location.pathname === '/owner/dashboard' ||
     location.pathname === '/super-admin/dashboard' ||
     location.pathname === '/tenant/dashboard'
+
+  const notifRoute =
+    user?.role === 'super_admin'
+      ? '/super-admin/notifications'
+      : user?.role === 'tenant'
+      ? '/tenant/notifications'
+      : '/owner/notifications'
 
   return (
     <header
@@ -442,8 +468,9 @@ export function DesktopTopBar() {
       {/* Right section: Notifications + User Avatar Capsule */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexShrink: 0 }}>
         <button
-          onClick={() => navigate(user?.role === 'super_admin' ? '/super-admin/notifications' : '/owner/notifications')}
+          onClick={() => navigate(notifRoute)}
           style={{
+            position: 'relative',
             width: 36,
             height: 36,
             borderRadius: '50%',
@@ -461,6 +488,29 @@ export function DesktopTopBar() {
           aria-label="Notifications"
         >
           <Bell size={16} />
+          {unreadCount > 0 && (
+            <span
+              style={{
+                position: 'absolute',
+                top: -2,
+                right: -2,
+                minWidth: 16,
+                height: 16,
+                borderRadius: 999,
+                background: '#EF4444',
+                color: 'white',
+                fontSize: '0.625rem',
+                fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 4px',
+                boxShadow: '0 0 0 2px #FFFFFF',
+              }}
+            >
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
         </button>
 
         <div

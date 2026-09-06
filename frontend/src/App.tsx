@@ -1,11 +1,9 @@
-import React, { Suspense, lazy, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import React, { Suspense, lazy } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
-import { ToastProvider, useToast } from './contexts/ToastContext'
-import { OwnerShell, TenantShell, PageLoader, MobilePage } from './components/layout/AppShell'
+import { ToastProvider } from './contexts/ToastContext'
+import { OwnerShell, TenantShell, PageLoader } from './components/layout/AppShell'
 import { SuperAdminShell } from './components/layout/SuperAdminShell'
-import { MobileHeader } from './components/navigation'
-import { rentApi } from './api/client'
 
 // Auth
 import LoginPage from './pages/auth/LoginPage'
@@ -17,6 +15,7 @@ const OrganizationDetailPage = lazy(() => import('./pages/superadmin/Organizatio
 const OwnersPage = lazy(() => import('./pages/superadmin/OwnersPage'))
 const AuditLogsPage = lazy(() => import('./pages/superadmin/AuditLogsPage'))
 const SuperAdminSettingsPage = lazy(() => import('./pages/superadmin/SettingsPage'))
+const SuperAdminSmtpPage = lazy(() => import('./pages/superadmin/SmtpPage'))
 const SuperAdminMorePage = lazy(() => import('./pages/superadmin/SuperAdminMorePage'))
 
 // Owner pages
@@ -37,6 +36,8 @@ const AgreementsPage = lazy(() => import('./pages/owner/AgreementsPage'))
 const OwnerDocumentsPage = lazy(() => import('./pages/owner/DocumentsPage'))
 const AnnouncementsPage = lazy(() => import('./pages/owner/AnnouncementsPage'))
 const ReportsPage = lazy(() => import('./pages/owner/ReportsPage'))
+const GenerateRentPage = lazy(() => import('./pages/owner/GenerateRentPage'))
+const OwnerSmtpPage = lazy(() => import('./pages/owner/OwnerSmtpPage'))
 
 // Shared pages
 const NotificationsPage = lazy(() => import('./pages/shared/NotificationsPage'))
@@ -49,46 +50,6 @@ import { TenantRentPage, TenantMaintenancePage, TenantMorePage } from './pages/t
 const TenantPaymentsPage = lazy(() => import('./pages/tenant/TenantPaymentsPage'))
 const TenantAgreementPage = lazy(() => import('./pages/tenant/TenantAgreementPage'))
 const TenantDocumentsPage = lazy(() => import('./pages/tenant/TenantDocumentsPage'))
-
-function GenerateRentPage() {
-  const navigate = useNavigate()
-  const { success, error } = useToast()
-  const [isLoading, setIsLoading] = useState(false)
-
-  const now = new Date()
-  const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  const [billingMonth, setBillingMonth] = useState(defaultMonth)
-
-  const handleGenerate = async () => {
-    setIsLoading(true)
-    try {
-      const res = await rentApi.generateMonthly({ billing_month: billingMonth })
-      success(`Generated ${res.data.data.created} invoices, skipped ${res.data.data.skipped} existing`)
-      navigate('/owner/rent')
-    } catch {
-      error('Failed to generate rent invoices')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  return (
-    <MobilePage role="owner" header={<MobileHeader title="Generate Monthly Rent" showBack />} showBottomNav={false}>
-      <div style={{ maxWidth: 480, margin: '0 auto' }}>
-        <p className="text-muted" style={{ marginBottom: '1.25rem' }}>
-          Generate rent invoices for all occupied units. This is idempotent — existing invoices will not be duplicated.
-        </p>
-        <div className="form-group">
-          <label className="input-label" htmlFor="billing-month">Billing Month</label>
-          <input id="billing-month" type="month" className="input" value={billingMonth} onChange={(e) => setBillingMonth(e.target.value)} />
-        </div>
-        <button className="btn btn-primary btn-full btn-lg" onClick={handleGenerate} disabled={isLoading}>
-          {isLoading ? 'Generating...' : '⚡ Generate Rent Invoices'}
-        </button>
-      </div>
-    </MobilePage>
-  )
-}
 
 function NotFoundPage() {
   const nav = window.location.pathname.startsWith('/super-admin')
@@ -123,8 +84,10 @@ function App() {
                 <Route path="organizations" element={<OrganizationsPage />} />
                 <Route path="organizations/:orgId" element={<OrganizationDetailPage />} />
                 <Route path="owners" element={<OwnersPage />} />
+                <Route path="smtp" element={<SuperAdminSmtpPage />} />
                 <Route path="audit-logs" element={<AuditLogsPage />} />
                 <Route path="settings" element={<SuperAdminSettingsPage />} />
+                <Route path="notifications" element={<NotificationsPage role="super_admin" />} />
                 <Route path="more" element={<SuperAdminMorePage />} />
                 <Route index element={<Navigate to="dashboard" replace />} />
               </Route>
@@ -136,22 +99,26 @@ function App() {
                 <Route path="properties/new" element={<AddPropertyPage />} />
                 <Route path="properties/:propertyId" element={<PropertyDetailPage />} />
                 <Route path="units" element={<UnitsPage />} />
+                <Route path="units/:unitId" element={<UnitsPage />} />
                 <Route path="tenants" element={<TenantsPage />} />
                 <Route path="tenants/new" element={<AddTenantPage />} />
                 <Route path="tenants/:tenantId" element={<TenantDetailPage />} />
                 <Route path="rent" element={<RentPage />} />
+                <Route path="rent/generate" element={<GenerateRentPage />} />
+                <Route path="rent/invoices/:invoiceId" element={<RentPage />} />
                 <Route path="payments" element={<PaymentsPage />} />
                 <Route path="maintenance" element={<MaintenancePage />} />
+                <Route path="maintenance/:id" element={<MaintenancePage />} />
                 <Route path="expenses" element={<ExpensesPage />} />
                 <Route path="agreements" element={<AgreementsPage />} />
                 <Route path="documents" element={<OwnerDocumentsPage />} />
                 <Route path="announcements" element={<AnnouncementsPage />} />
                 <Route path="reports" element={<ReportsPage />} />
+                <Route path="smtp" element={<OwnerSmtpPage />} />
                 <Route path="notifications" element={<NotificationsPage role="owner" />} />
                 <Route path="settings" element={<SettingsPage role="owner" />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="more" element={<OwnerMorePage />} />
-                <Route path="rent/generate" element={<GenerateRentPage />} />
                 <Route index element={<Navigate to="dashboard" replace />} />
               </Route>
 
@@ -160,6 +127,7 @@ function App() {
                 <Route path="dashboard" element={<TenantDashboardPage />} />
                 <Route path="rent" element={<TenantRentPage />} />
                 <Route path="maintenance" element={<TenantMaintenancePage />} />
+                <Route path="maintenance/:id" element={<TenantMaintenancePage />} />
                 <Route path="documents" element={<TenantDocumentsPage />} />
                 <Route path="payments" element={<TenantPaymentsPage />} />
                 <Route path="agreements" element={<TenantAgreementPage />} />

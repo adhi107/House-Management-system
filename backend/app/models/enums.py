@@ -32,6 +32,7 @@ class RentStatus(str, Enum):
     PENDING = "pending"
     PARTIALLY_PAID = "partially_paid"
     OVERDUE = "overdue"
+    UNDER_REVIEW = "under_review"
     WAIVED = "waived"
 
 

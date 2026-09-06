@@ -75,6 +75,9 @@ async def get_dashboard_summary(
     overdue_invoices = await db.rent_invoices.count_documents({
         **base_filter, "status": RentStatus.OVERDUE
     })
+    under_review_invoices = await db.rent_invoices.count_documents({
+        **base_filter, "status": RentStatus.UNDER_REVIEW
+    })
 
     from datetime import timedelta
     expiry_threshold = now + timedelta(days=30)
@@ -133,6 +136,7 @@ async def get_dashboard_summary(
             "collection_rate": round((collected / expected * 100) if expected else 0, 1),
             "alerts": {
                 "overdue_invoices": overdue_invoices,
+                "under_review_invoices": under_review_invoices,
                 "expiring_agreements": expiring_agreements,
                 "open_maintenance": open_maintenance,
                 "vacant_units": vacant_units,

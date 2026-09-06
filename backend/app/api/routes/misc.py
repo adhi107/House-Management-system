@@ -97,7 +97,11 @@ async def upload_document(
     return {
         "success": True,
         "message": "Document uploaded",
-        "data": {"id": str(result.inserted_id), "filename": filename}
+        "data": {
+            "id": str(result.inserted_id),
+            "filename": filename,
+            "url": f"/uploads/{entity_type}/{filename}",
+        }
     }
 
 
@@ -236,18 +240,47 @@ async def delete_expense(
 notification_router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
+def _get_notification_filter(current_user: dict, org_id: Optional[str] = None, tenant_id: Optional[str] = None) -> dict:
+    if current_user["role"] == UserRole.TENANT:
+        if tenant_id:
+            return {"$or": [{"tenant_id": tenant_id}, {"user_id": current_user["id"]}]}
+        return {"user_id": current_user["id"]}
+    elif current_user["role"] == UserRole.OWNER:
+        flt_or = [{"user_id": current_user["id"]}]
+        if org_id:
+            flt_or.append({"organization_id": org_id, "tenant_id": None})
+            flt_or.append({"organization_id": org_id, "tenant_id": {"$exists": False}})
+        return {"$or": flt_or}
+    else:
+        return {
+            "$or": [
+                {"user_id": current_user["id"]},
+                {"target": "super_admin"},
+                {"type": "system_alert"},
+            ]
+        }
+
+
 @notification_router.get("")
 async def list_notifications(
     current_user=Depends(get_current_user),
     db=Depends(get_db),
 ):
+    tenant_id = None
+    org_id = None
     if current_user["role"] == UserRole.TENANT:
         tenant = await db.tenants.find_one({"user_id": current_user["id"]})
-        flt = {"tenant_id": str(tenant["_id"])} if tenant else {"user_id": None}
-    else:
-        flt = {"user_id": current_user["id"]}
+        if tenant:
+            tenant_id = str(tenant["_id"])
+    elif current_user["role"] == UserRole.OWNER:
+        org_id = current_user.get("organization_id")
+        if not org_id:
+            org = await db.organizations.find_one({"owner_user_id": current_user["id"]})
+            org_id = str(org["_id"]) if org else None
 
-    notifications = await db.notifications.find(flt).sort("created_at", -1).limit(50).to_list(None)
+    flt = _get_notification_filter(current_user, org_id, tenant_id)
+
+    notifications = await db.notifications.find(flt).sort("created_at", -1).limit(60).to_list(None)
     result = []
     for n in notifications:
         data = serialize_doc(n)
@@ -264,10 +297,13 @@ async def mark_read(
     current_user=Depends(get_current_user),
     db=Depends(get_db),
 ):
-    await db.notifications.update_one(
-        {"_id": ObjectId(notification_id)},
-        {"$set": {"read": True}}
-    )
+    try:
+        await db.notifications.update_one(
+            {"_id": ObjectId(notification_id)},
+            {"$set": {"read": True}}
+        )
+    except Exception:
+        pass
     return {"success": True}
 
 
@@ -276,13 +312,56 @@ async def mark_all_read(
     current_user=Depends(get_current_user),
     db=Depends(get_db),
 ):
+    tenant_id = None
+    org_id = None
     if current_user["role"] == UserRole.TENANT:
         tenant = await db.tenants.find_one({"user_id": current_user["id"]})
-        flt = {"tenant_id": str(tenant["_id"])} if tenant else {"user_id": None}
-    else:
-        flt = {"user_id": current_user["id"]}
+        if tenant:
+            tenant_id = str(tenant["_id"])
+    elif current_user["role"] == UserRole.OWNER:
+        org_id = current_user.get("organization_id")
+        if not org_id:
+            org = await db.organizations.find_one({"owner_user_id": current_user["id"]})
+            org_id = str(org["_id"]) if org else None
+
+    flt = _get_notification_filter(current_user, org_id, tenant_id)
     await db.notifications.update_many(flt, {"$set": {"read": True}})
     return {"success": True}
+
+
+@notification_router.delete("/{notification_id}")
+async def delete_notification(
+    notification_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    try:
+        await db.notifications.delete_one({"_id": ObjectId(notification_id)})
+    except Exception:
+        pass
+    return {"success": True, "message": "Notification dismissed"}
+
+
+@notification_router.delete("")
+async def clear_all_notifications(
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    tenant_id = None
+    org_id = None
+    if current_user["role"] == UserRole.TENANT:
+        tenant = await db.tenants.find_one({"user_id": current_user["id"]})
+        if tenant:
+            tenant_id = str(tenant["_id"])
+    elif current_user["role"] == UserRole.OWNER:
+        org_id = current_user.get("organization_id")
+        if not org_id:
+            org = await db.organizations.find_one({"owner_user_id": current_user["id"]})
+            org_id = str(org["_id"]) if org else None
+
+    flt = _get_notification_filter(current_user, org_id, tenant_id)
+    await db.notifications.delete_many(flt)
+    return {"success": True, "message": "All notifications cleared"}
 
 
 # ================================================

@@ -150,6 +150,23 @@ async def create_maintenance(
     }
     result = await db.maintenance_requests.insert_one(doc)
 
+    # Notify Owner organization
+    if org_id:
+        reporter = "Resident"
+        if tenant_id:
+            t = await db.tenants.find_one({"_id": ObjectId(tenant_id)})
+            if t:
+                reporter = t.get("full_name") or "Resident"
+        
+        await db.notifications.insert_one({
+            "organization_id": org_id,
+            "type": "maintenance_request",
+            "title": f"New Issue #{request_number}: {data.title}",
+            "message": f"{reporter} reported a {data.category} issue (Priority: {data.priority.upper()}).",
+            "read": False,
+            "created_at": utcnow(),
+        })
+
     return {
         "success": True,
         "message": "Maintenance request submitted",

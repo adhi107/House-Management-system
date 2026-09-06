@@ -564,7 +564,31 @@ function EditOrganizationModal({
   const [maxUnits, setMaxUnits] = useState(String(org.max_units || '50'))
   const [subdomain, setSubdomain] = useState(org.subdomain || '')
   const [notes, setNotes] = useState(org.notes || '')
+  const [ownerName, setOwnerName] = useState(org.owner_name || '')
+  const [ownerEmail, setOwnerEmail] = useState(org.owner_email || '')
+  const [ownerPhone, setOwnerPhone] = useState(org.owner_phone || '')
+  
+  // Feature Entitlements
+  const [featureWhatsApp, setFeatureWhatsApp] = useState(true)
+  const [featureUPI, setFeatureUPI] = useState(true)
+  const [featureAgreements, setFeatureAgreements] = useState(true)
+  const [featureBIReports, setFeatureBIReports] = useState(true)
+
   const [isLoading, setIsLoading] = useState(false)
+
+  const handlePlanSelect = (selectedPlan: OrganizationPlan) => {
+    setPlan(selectedPlan)
+    if (selectedPlan === 'starter') {
+      setMaxProperties('5')
+      setMaxUnits('25')
+    } else if (selectedPlan === 'growth') {
+      setMaxProperties('20')
+      setMaxUnits('150')
+    } else if (selectedPlan === 'enterprise') {
+      setMaxProperties('100')
+      setMaxUnits('1000')
+    }
+  }
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -583,9 +607,19 @@ function EditOrganizationModal({
         max_units: parseInt(maxUnits) || 50,
         subdomain: subdomain.trim() || undefined,
         notes: notes.trim() || undefined,
+        owner_name: ownerName.trim() || undefined,
+        owner_email: ownerEmail.trim() || undefined,
+        owner_phone: ownerPhone.trim() || undefined,
+        settings: {
+          feature_whatsapp: featureWhatsApp,
+          feature_upi: featureUPI,
+          feature_agreements: featureAgreements,
+          feature_bi_reports: featureBIReports,
+        },
       })
-      success('Organization details updated successfully!')
+      success(`Organization "${name}" updated successfully!`)
       onSuccess()
+      onClose()
     } catch (err) {
       const axiosErr = err as AxiosError<{ detail: string }>
       error(axiosErr.response?.data?.detail || 'Failed to update organization')
@@ -594,51 +628,131 @@ function EditOrganizationModal({
     }
   }
 
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Edit ${org.name}`} maxWidth="520px">
-      <form onSubmit={handleUpdate}>
-        <div className="form-group">
-          <label className="input-label">Organization Name</label>
-          <input
-            type="text"
-            className="input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-        </div>
+  const cleanPhone = (p?: string) => p?.replace(/\D/g, '') || ''
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-          <div className="form-group">
-            <label className="input-label">Subscription Plan</label>
-            <select
-              className="input"
-              value={plan}
-              onChange={(e) => setPlan(e.target.value as OrganizationPlan)}
-            >
-              <option value="starter">Starter Plan</option>
-              <option value="growth">Growth Plan</option>
-              <option value="enterprise">Enterprise Plan</option>
-            </select>
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Edit ${org.name}`} maxWidth="580px">
+      <form onSubmit={handleUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        
+        {/* Top Header Badge Card */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '0.875rem 1rem',
+            borderRadius: '0.625rem',
+            background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+            color: '#FFFFFF',
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Building2 size={18} color="#38BDF8" />
+              <span style={{ fontWeight: 900, fontSize: '1.0625rem', letterSpacing: '-0.01em' }}>
+                {name || org.name}
+              </span>
+              <span style={{ fontSize: '0.6875rem', fontWeight: 800, padding: '0.15rem 0.45rem', borderRadius: 4, background: 'rgba(255,255,255,0.15)', color: '#BAE6FD' }}>
+                {org.organization_code}
+              </span>
+            </div>
+            <p style={{ fontSize: '0.75rem', color: '#94A3B8', margin: '0.2rem 0 0' }}>
+              Plan: <strong style={{ color: '#F8FAFC', textTransform: 'uppercase' }}>{plan}</strong> • Created: {formatDate(org.created_at)}
+            </p>
           </div>
 
-          <div className="form-group">
-            <label className="input-label">Status</label>
+          <div>
             <select
-              className="input"
               value={status}
               onChange={(e) => setStatus(e.target.value as OrganizationStatus)}
+              style={{
+                background: status === 'active' ? '#065F46' : status === 'suspended' ? '#9F1239' : '#1E293B',
+                color: '#FFFFFF',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '0.375rem',
+                fontSize: '0.75rem',
+                fontWeight: 800,
+                padding: '0.35rem 0.65rem',
+                cursor: 'pointer',
+              }}
             >
-              <option value="active">Active</option>
-              <option value="suspended">Suspended</option>
-              <option value="inactive">Inactive</option>
+              <option value="active">🟢 Active</option>
+              <option value="suspended">🔴 Suspended</option>
+              <option value="inactive">⚪ Inactive</option>
             </select>
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+        {/* Organization Name & Code */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '0.75rem' }}>
           <div className="form-group">
-            <label className="input-label">Max Buildings / Properties</label>
+            <label className="input-label" style={{ fontWeight: 700, fontSize: '0.8125rem' }}>Organization Name *</label>
+            <input
+              type="text"
+              className="input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="input-label" style={{ fontWeight: 700, fontSize: '0.8125rem' }}>Client Code</label>
+            <input
+              type="text"
+              className="input"
+              value={org.organization_code}
+              disabled
+              style={{ background: '#F1F5F9', color: '#64748B', fontWeight: 700 }}
+            />
+          </div>
+        </div>
+
+        {/* Interactive Subscription Plan Tier Cards */}
+        <div>
+          <label className="input-label" style={{ fontWeight: 700, fontSize: '0.8125rem', marginBottom: '0.35rem', display: 'block' }}>
+            Subscription Tier / Plan *
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+            {[
+              { id: 'starter', label: 'Starter', price: '₹1,499/mo', desc: 'Up to 5 Props • 25 Units' },
+              { id: 'growth', label: 'Growth', price: '₹3,999/mo', desc: 'Up to 20 Props • 150 Units' },
+              { id: 'enterprise', label: 'Enterprise', price: '₹9,999/mo', desc: 'Unlimited Props & Units' },
+            ].map((p) => {
+              const isSelected = plan === p.id
+              return (
+                <div
+                  key={p.id}
+                  onClick={() => handlePlanSelect(p.id as OrganizationPlan)}
+                  style={{
+                    padding: '0.625rem 0.5rem',
+                    borderRadius: '0.5rem',
+                    border: isSelected ? '2px solid #2563EB' : '1px solid #E2E8F0',
+                    background: isSelected ? '#EFF6FF' : '#FFFFFF',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <p style={{ fontWeight: 800, fontSize: '0.8125rem', margin: 0, color: isSelected ? '#1D4ED8' : '#0F172A' }}>
+                    {p.label}
+                  </p>
+                  <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: isSelected ? '#2563EB' : '#059669', margin: '0.1rem 0' }}>
+                    {p.price}
+                  </p>
+                  <p style={{ fontSize: '0.625rem', color: '#64748B', margin: 0 }}>
+                    {p.desc}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Quota Limits: Max Properties & Max Units */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', background: '#F8FAFC', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #E2E8F0' }}>
+          <div className="form-group">
+            <label className="input-label" style={{ fontWeight: 700, fontSize: '0.8125rem' }}>Max Buildings / Properties</label>
             <input
               type="number"
               className="input"
@@ -648,7 +762,7 @@ function EditOrganizationModal({
             />
           </div>
           <div className="form-group">
-            <label className="input-label">Max Units</label>
+            <label className="input-label" style={{ fontWeight: 700, fontSize: '0.8125rem' }}>Max Units / Flats</label>
             <input
               type="number"
               className="input"
@@ -659,19 +773,102 @@ function EditOrganizationModal({
           </div>
         </div>
 
-        <div className="form-group">
-          <label className="input-label">Custom Subdomain</label>
-          <input
-            type="text"
-            className="input"
-            placeholder="e.g. apex"
-            value={subdomain}
-            onChange={(e) => setSubdomain(e.target.value)}
-          />
+        {/* Owner Contact Information & Communication */}
+        <div style={{ background: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #E2E8F0' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0F172A', display: 'block', marginBottom: '0.5rem' }}>
+            👤 Assigned Landlord / Organization Owner
+          </span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <div className="form-group">
+              <label className="input-label" style={{ fontSize: '0.75rem' }}>Owner Full Name</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="e.g. Ramesh Patel"
+                value={ownerName}
+                onChange={(e) => setOwnerName(e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label className="input-label" style={{ fontSize: '0.75rem' }}>Owner Phone</label>
+              <input
+                type="tel"
+                className="input"
+                placeholder="e.g. 9876543210"
+                value={ownerPhone}
+                onChange={(e) => setOwnerPhone(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {ownerPhone && (
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <a
+                href={`https://wa.me/${cleanPhone(ownerPhone)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-ghost btn-sm"
+                style={{ flex: 1, background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', fontSize: '0.6875rem', textDecoration: 'none', justifyContent: 'center' }}
+              >
+                💬 WhatsApp Owner
+              </a>
+              <a
+                href={`tel:${ownerPhone}`}
+                className="btn btn-ghost btn-sm"
+                style={{ flex: 1, background: '#F8FAFC', color: '#334155', border: '1px solid #E2E8F0', fontSize: '0.6875rem', textDecoration: 'none', justifyContent: 'center' }}
+              >
+                📞 Direct Call
+              </a>
+            </div>
+          )}
         </div>
 
+        {/* Feature Entitlements Toggles */}
+        <div>
+          <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0F172A', display: 'block', marginBottom: '0.35rem' }}>
+            ⚡ Platform Feature Entitlements
+          </span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.75rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', background: '#F8FAFC', padding: '0.35rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #E2E8F0' }}>
+              <input type="checkbox" checked={featureWhatsApp} onChange={(e) => setFeatureWhatsApp(e.target.checked)} />
+              <span>WhatsApp Alerts</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', background: '#F8FAFC', padding: '0.35rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #E2E8F0' }}>
+              <input type="checkbox" checked={featureUPI} onChange={(e) => setFeatureUPI(e.target.checked)} />
+              <span>UPI Payment Gateway</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', background: '#F8FAFC', padding: '0.35rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #E2E8F0' }}>
+              <input type="checkbox" checked={featureAgreements} onChange={(e) => setFeatureAgreements(e.target.checked)} />
+              <span>Digital Lease & E-Sign</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', background: '#F8FAFC', padding: '0.35rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #E2E8F0' }}>
+              <input type="checkbox" checked={featureBIReports} onChange={(e) => setFeatureBIReports(e.target.checked)} />
+              <span>BI Analytics & CSV</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Custom Subdomain */}
         <div className="form-group">
-          <label className="input-label">Internal Admin Notes</label>
+          <label className="input-label" style={{ fontWeight: 700, fontSize: '0.8125rem' }}>Custom Subdomain</label>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <input
+              type="text"
+              className="input"
+              placeholder="e.g. bluehorizon"
+              value={subdomain}
+              onChange={(e) => setSubdomain(e.target.value)}
+              style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
+            />
+            <span style={{ background: '#F1F5F9', border: '1px solid #CBD5E1', borderLeft: 'none', padding: '0.5rem 0.65rem', fontSize: '0.75rem', color: '#64748B', fontWeight: 600, borderTopRightRadius: '0.375rem', borderBottomRightRadius: '0.375rem' }}>
+              .propertyhub.app
+            </span>
+          </div>
+        </div>
+
+        {/* Admin Notes */}
+        <div className="form-group">
+          <label className="input-label" style={{ fontWeight: 700, fontSize: '0.8125rem' }}>Internal Admin Notes</label>
           <textarea
             className="input"
             rows={2}
@@ -682,13 +879,14 @@ function EditOrganizationModal({
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem', borderTop: '1px solid #F1F5F9', paddingTop: '0.75rem' }}>
           <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose} disabled={isLoading}>
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary" style={{ flex: 1, gap: '0.375rem' }} disabled={isLoading}>
+          <button type="submit" className="btn btn-primary" style={{ flex: 1.5, gap: '0.375rem', background: '#0F172A', borderColor: '#0F172A', fontWeight: 800 }} disabled={isLoading}>
             <Save size={15} />
-            {isLoading ? 'Saving...' : 'Save Changes'}
+            {isLoading ? 'Saving Changes...' : 'Save Changes'}
           </button>
         </div>
       </form>

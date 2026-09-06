@@ -113,6 +113,7 @@ export interface Unit {
   maintenance_charge: number
   security_deposit: number
   status: 'occupied' | 'vacant' | 'maintenance' | 'reserved' | 'inactive'
+  description?: string
   tenant_id?: string
   tenant_name?: string
   tenant_phone?: string
@@ -154,18 +155,34 @@ export interface Tenant {
   created_at: string
 }
 
-export type RentStatus = 'paid' | 'pending' | 'partially_paid' | 'overdue' | 'waived'
+export type RentStatus = 'paid' | 'pending' | 'partially_paid' | 'overdue' | 'under_review' | 'waived'
 export type PaymentMethod = 'cash' | 'upi' | 'bank_transfer' | 'card' | 'cheque' | 'other'
+
+export interface ClaimedPayment {
+  amount: number
+  payment_method: PaymentMethod | string
+  transaction_reference?: string
+  payment_date: string
+  proof_url?: string
+  notes?: string
+  reported_at?: string
+  status?: string
+  rejection_reason?: string
+  receipt_number?: string
+}
 
 export interface RentInvoice {
   id: string
   invoice_number: string
   property_id: string
   property_name?: string
+  property_address?: string
   unit_id: string
   unit_number?: string
   tenant_id: string
   tenant_name?: string
+  tenant_phone?: string
+  tenant_email?: string
   billing_month: string
   rent_amount: number
   maintenance_amount: number
@@ -178,6 +195,8 @@ export interface RentInvoice {
   status: RentStatus
   due_date: string
   notes?: string
+  payment_claimed?: boolean
+  claimed_payment?: ClaimedPayment
   payments?: Payment[]
   created_at: string
 }
@@ -188,6 +207,7 @@ export interface Payment {
   invoice_id: string
   tenant_id: string
   tenant_name?: string
+  tenant_phone?: string
   unit_id: string
   unit_number?: string
   property_id: string
@@ -206,6 +226,8 @@ export interface RentSummary {
   collected: number
   pending: number
   overdue: number
+  under_review?: number
+  under_review_count?: number
   collection_rate: number
 }
 
@@ -292,6 +314,7 @@ export interface TenantDashboard {
   }
   current_invoice?: {
     id: string
+    invoice_number?: string
     billing_month: string
     total_amount: number
     paid_amount: number
@@ -335,6 +358,7 @@ export interface OwnerDashboard {
   collection_rate: number
   alerts: {
     overdue_invoices: number
+    under_review_invoices?: number
     expiring_agreements: number
     open_maintenance: number
     vacant_units: number

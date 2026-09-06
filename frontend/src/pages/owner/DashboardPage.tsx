@@ -1,18 +1,48 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Bell, Plus, TrendingUp, TrendingDown, Building2, Users, Home, AlertTriangle,
-  ChevronRight, RefreshCw, Sparkles, CreditCard, Wrench, FilePlus, DollarSign,
-  BarChart3, CheckCircle2, ArrowUpRight
+  Bell,
+  Plus,
+  TrendingUp,
+  TrendingDown,
+  Building2,
+  Users,
+  Home,
+  AlertTriangle,
+  ChevronRight,
+  RefreshCw,
+  Sparkles,
+  CreditCard,
+  Wrench,
+  FilePlus,
+  DollarSign,
+  BarChart3,
+  CheckCircle2,
+  ArrowUpRight,
+  Clock,
+  Send,
+  Megaphone,
+  FileText,
+  ShieldCheck,
+  Receipt,
+  Layers,
+  ArrowRight,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { dashboardApi, propertyApi } from '../../api/client'
 import { DashboardSummary, Property } from '../../types'
 import { MobilePage } from '../../components/layout/AppShell'
 import { MobileHeader } from '../../components/navigation'
-import { formatCurrency, SkeletonKpi, EmptyState, ErrorState, StatusBadge, ProgressBar, SectionHeader } from '../../components/ui'
+import { formatCurrency, SkeletonKpi, EmptyState, ErrorState, StatusBadge, ProgressBar } from '../../components/ui'
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
 } from 'recharts'
 
 export default function OwnerDashboardPage() {
@@ -21,6 +51,7 @@ export default function OwnerDashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [properties, setProperties] = useState<Property[]>([])
   const [selectedProp, setSelectedProp] = useState<string>('')
+  const [unreadNotifs, setUnreadNotifs] = useState<number>(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(false)
   const [showPropSelect, setShowPropSelect] = useState(false)
@@ -32,12 +63,14 @@ export default function OwnerDashboardPage() {
     setIsLoading(true)
     setError(false)
     try {
-      const [sumRes, propRes] = await Promise.all([
+      const [sumRes, propRes, notifRes] = await Promise.all([
         dashboardApi.getSummary(selectedProp || undefined),
         propertyApi.list(),
+        import('../../api/client').then(m => m.notificationApi.list().catch(() => ({ data: { unread_count: 0 } }))),
       ])
       setSummary(sumRes.data.data)
       setProperties(propRes.data.data || [])
+      setUnreadNotifs(notifRes.data?.unread_count || 0)
     } catch {
       setError(true)
     } finally {
@@ -45,16 +78,21 @@ export default function OwnerDashboardPage() {
     }
   }
 
-  useEffect(() => { load() }, [selectedProp])
+  useEffect(() => {
+    load()
+  }, [selectedProp])
 
-  const selectedName = selectedProp ? properties.find((p) => p.id === selectedProp)?.name : 'All Buildings'
+  const selectedName = selectedProp
+    ? properties.find((p) => p.id === selectedProp)?.name
+    : 'All Buildings'
 
   const categoryChips = [
     { label: '🔥 Overview', active: activeChip === 'all', onClick: () => setActiveChip('all') },
     { label: '🏢 Buildings', active: false, onClick: () => navigate('/owner/properties') },
     { label: '🚪 Units', active: false, onClick: () => navigate('/owner/units') },
     { label: '💳 Rent Manager', active: false, onClick: () => navigate('/owner/rent') },
-    { label: '🔧 Fixes', active: false, onClick: () => navigate('/owner/maintenance') },
+    { label: '🔧 Maintenance', active: false, onClick: () => navigate('/owner/maintenance') },
+    { label: '📊 BI Reports', active: false, onClick: () => navigate('/owner/reports') },
   ]
 
   return (
@@ -62,7 +100,7 @@ export default function OwnerDashboardPage() {
       role="owner"
       header={
         <MobileHeader
-          searchPlaceholder="Search flats, tenants, rent..."
+          searchPlaceholder="Search flats, tenants, rent invoices..."
           chips={categoryChips}
           rightAction={
             <button
@@ -72,40 +110,137 @@ export default function OwnerDashboardPage() {
               aria-label="Notifications"
             >
               <Bell size={20} />
+              {unreadNotifs > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 2,
+                    right: 2,
+                    minWidth: 16,
+                    height: 16,
+                    borderRadius: '50%',
+                    background: '#EF4444',
+                    color: 'white',
+                    fontSize: '0.6rem',
+                    fontWeight: 800,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0 3px',
+                    boxShadow: '0 0 0 2px #FFFFFF',
+                  }}
+                >
+                  {unreadNotifs > 9 ? '9+' : unreadNotifs}
+                </span>
+              )}
             </button>
           }
         />
       }
     >
       {/* Top Header Controls: Building Selector & Organization Breadcrumb */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', width: '100%' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '1.25rem',
+          width: '100%',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <button
-            onClick={() => setShowPropSelect(!showPropSelect)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '0.5rem',
-              padding: '0.45rem 1rem', borderRadius: 'var(--radius-full)',
-              background: '#0F172A', border: 'none',
-              color: 'white', fontWeight: 700, fontSize: '0.8125rem',
-              cursor: 'pointer', boxShadow: 'var(--shadow-xs)',
-            }}
-            aria-expanded={showPropSelect}
-          >
-            <Building2 size={15} />
-            {selectedName}
-            <ChevronRight size={14} style={{ transform: showPropSelect ? 'rotate(90deg)' : 'none', transition: '0.15s' }} />
-          </button>
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowPropSelect(!showPropSelect)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.45rem 1rem',
+                borderRadius: '2rem',
+                background: '#0F172A',
+                border: 'none',
+                color: 'white',
+                fontWeight: 700,
+                fontSize: '0.8125rem',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(15, 23, 42, 0.15)',
+              }}
+              aria-expanded={showPropSelect}
+            >
+              <Building2 size={15} />
+              <span>{selectedName}</span>
+              <ChevronRight
+                size={14}
+                style={{
+                  transform: showPropSelect ? 'rotate(90deg)' : 'none',
+                  transition: '0.15s',
+                }}
+              />
+            </button>
+
+            {/* Dropdown Menu */}
+            {showPropSelect && (
+              <div
+                className="card animate-fade-in"
+                style={{
+                  position: 'absolute',
+                  top: '120%',
+                  left: 0,
+                  zIndex: 100,
+                  minWidth: 220,
+                  padding: '0.375rem',
+                  borderRadius: '0.75rem',
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+                  background: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                }}
+              >
+                {[{ id: '', name: 'All Buildings' }, ...properties].map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      setSelectedProp(p.id)
+                      setShowPropSelect(false)
+                    }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '0.5rem 0.75rem',
+                      borderRadius: '0.5rem',
+                      background: selectedProp === p.id ? '#EFF6FF' : 'transparent',
+                      color: selectedProp === p.id ? '#1D4ED8' : '#0F172A',
+                      fontWeight: selectedProp === p.id ? 700 : 500,
+                      fontSize: '0.8125rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <span style={{ fontSize: '0.8125rem', color: '#64748B', fontWeight: 600 }}>
             {summary?.organization_name || user?.organization_name || 'Organization'}
           </span>
         </div>
 
-        {/* Desktop Quick New Buttons */}
+        {/* Desktop Quick Shortcuts */}
         <div className="hidden-mobile" style={{ display: 'flex', gap: '0.5rem' }}>
           <button
             className="btn btn-secondary btn-sm"
-            onClick={() => navigate('/owner/units?new=true')}
+            onClick={() => navigate('/owner/rent/generate')}
+            style={{ gap: '0.25rem', color: '#2563EB', background: '#EFF6FF', borderColor: '#BFDBFE', fontWeight: 600 }}
+          >
+            ⚡ Generate Invoices
+          </button>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => navigate('/owner/units')}
             style={{ gap: '0.25rem' }}
           >
             <Plus size={14} /> Add Flat
@@ -113,34 +248,12 @@ export default function OwnerDashboardPage() {
           <button
             className="btn btn-primary btn-sm"
             onClick={() => navigate('/owner/properties/new')}
-            style={{ gap: '0.25rem' }}
+            style={{ gap: '0.25rem', fontWeight: 700 }}
           >
             <Plus size={14} /> New Building
           </button>
         </div>
       </div>
-
-      {/* Property selector dropdown */}
-      {showPropSelect && (
-        <div className="card animate-fade-in" style={{ marginBottom: '1rem', padding: '0.5rem', overflow: 'hidden' }}>
-          {[{ id: '', name: 'All Buildings' }, ...properties].map((p) => (
-            <button
-              key={p.id}
-              onClick={() => { setSelectedProp(p.id); setShowPropSelect(false) }}
-              style={{
-                display: 'block', width: '100%', textAlign: 'left',
-                padding: '0.625rem 0.75rem', borderRadius: 'var(--radius-md)',
-                background: selectedProp === p.id ? '#0F172A' : 'transparent',
-                color: selectedProp === p.id ? 'white' : '#0F172A',
-                fontWeight: selectedProp === p.id ? 700 : 500,
-                fontSize: '0.875rem', border: 'none', cursor: 'pointer',
-              }}
-            >
-              {p.name}
-            </button>
-          ))}
-        </div>
-      )}
 
       {isLoading ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -150,46 +263,115 @@ export default function OwnerDashboardPage() {
       ) : error || !summary ? (
         <ErrorState onRetry={load} />
       ) : (
-        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', width: '100%' }}>
-          
-          {/* Executive Overview: Split Hero Card (Left) + 4 Quick Stat Tiles (Right) */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem', alignItems: 'stretch' }}>
-            
-            {/* Left: Compact Hero Financial Card */}
+        <div
+          className="animate-fade-in"
+          style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', width: '100%' }}
+        >
+          {/* EXECUTIVE OVERVIEW: HERO FINANCIAL CARD (LEFT) + 4 METRIC TILES (RIGHT) */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+              gap: '1rem',
+              alignItems: 'stretch',
+            }}
+          >
+            {/* Left: Compact Hero Financial Card with Net Operating Income */}
             <div
               className="hero-banner"
               onClick={() => navigate('/owner/rent')}
-              style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 180, padding: '1.25rem 1.5rem', cursor: 'pointer' }}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                minHeight: 180,
+                padding: '1.25rem 1.5rem',
+                cursor: 'pointer',
+                borderRadius: '1rem',
+                boxShadow: '0 8px 24px rgba(15, 23, 42, 0.2)',
+              }}
             >
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.375rem' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.9, display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '0.375rem',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      opacity: 0.9,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.375rem',
+                    }}
+                  >
                     <Sparkles size={14} /> Collected Rent ({now.toLocaleString('default', { month: 'short' })})
                   </span>
-                  <span style={{ background: 'rgba(255, 255, 255, 0.2)', padding: '0.2rem 0.5rem', borderRadius: 'var(--radius-full)', fontSize: '0.6875rem', fontWeight: 800 }}>
-                    {summary.collection_rate}%
+                  <span
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.2)',
+                      padding: '0.2rem 0.5rem',
+                      borderRadius: '1rem',
+                      fontSize: '0.6875rem',
+                      fontWeight: 800,
+                    }}
+                  >
+                    {summary.collection_rate}% Collection Rate
                   </span>
                 </div>
 
-                <h1 style={{ fontWeight: 900, fontSize: '2rem', margin: '0 0 0.5rem', letterSpacing: '-0.025em', fontVariantNumeric: 'tabular-nums' }}>
+                <h1
+                  style={{
+                    fontWeight: 900,
+                    fontSize: '2.125rem',
+                    margin: '0 0 0.5rem',
+                    letterSpacing: '-0.025em',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
                   {formatCurrency(summary.collected_rent)}
                 </h1>
               </div>
 
-              <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8125rem', opacity: 0.95, paddingTop: '0.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.15)' }}>
-                <span>Expected: <strong>{formatCurrency(summary.expected_rent)}</strong></span>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: '0.8125rem',
+                  opacity: 0.95,
+                  paddingTop: '0.5rem',
+                  borderTop: '1px solid rgba(255, 255, 255, 0.15)',
+                }}
+              >
+                <span>Target: <strong>{formatCurrency(summary.expected_rent)}</strong></span>
                 <span>Pending: <strong>{formatCurrency(summary.pending_rent)}</strong></span>
+                <span>Net NOI: <strong>{formatCurrency(summary.net_income)}</strong></span>
               </div>
             </div>
 
             {/* Right: 4 Sleek KPI Tiles */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
-              
               {/* Occupancy */}
               <div
                 className="card card-hover"
                 onClick={() => navigate('/owner/units')}
-                style={{ padding: '0.875rem 1rem', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                style={{
+                  padding: '0.875rem 1rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  borderRadius: '0.75rem',
+                  border: '1px solid #E2E8F0',
+                }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
                   <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Occupancy Rate</span>
@@ -209,10 +391,18 @@ export default function OwnerDashboardPage() {
               <div
                 className="card card-hover"
                 onClick={() => navigate('/owner/expenses')}
-                style={{ padding: '0.875rem 1rem', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                style={{
+                  padding: '0.875rem 1rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  borderRadius: '0.75rem',
+                  border: '1px solid #E2E8F0',
+                }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Expenses</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>OPEX Expenses</span>
                   <div style={{ width: 28, height: 28, borderRadius: 8, background: '#FFF1F2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E11D48' }}>
                     <TrendingDown size={15} />
                   </div>
@@ -220,19 +410,27 @@ export default function OwnerDashboardPage() {
                 <p style={{ fontWeight: 800, fontSize: '1.375rem', margin: '0 0 0.125rem', fontVariantNumeric: 'tabular-nums', color: '#0F172A' }}>
                   {formatCurrency(summary.total_expenses)}
                 </p>
-                <p style={{ fontSize: '0.6875rem', color: '#64748B', margin: 0 }}>
+                <p style={{ fontSize: '0.6875rem', color: '#059669', margin: 0, fontWeight: 600 }}>
                   Net: {formatCurrency(summary.net_income)}
                 </p>
               </div>
 
-              {/* Expected Rent */}
+              {/* Expected Target */}
               <div
                 className="card card-hover"
                 onClick={() => navigate('/owner/rent')}
-                style={{ padding: '0.875rem 1rem', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                style={{
+                  padding: '0.875rem 1rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  borderRadius: '0.75rem',
+                  border: '1px solid #E2E8F0',
+                }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Expected Rent</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Expected Target</span>
                   <div style={{ width: 28, height: 28, borderRadius: 8, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1E3A8A' }}>
                     <CreditCard size={15} />
                   </div>
@@ -241,7 +439,7 @@ export default function OwnerDashboardPage() {
                   {formatCurrency(summary.expected_rent)}
                 </p>
                 <p style={{ fontSize: '0.6875rem', color: '#64748B', margin: 0 }}>
-                  Monthly Target
+                  Monthly Projected Target
                 </p>
               </div>
 
@@ -249,10 +447,18 @@ export default function OwnerDashboardPage() {
               <div
                 className="card card-hover"
                 onClick={() => navigate('/owner/maintenance')}
-                style={{ padding: '0.875rem 1rem', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                style={{
+                  padding: '0.875rem 1rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  borderRadius: '0.75rem',
+                  border: '1px solid #E2E8F0',
+                }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Maintenance</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Repairs Queue</span>
                   <div style={{ width: 28, height: 28, borderRadius: 8, background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D97706' }}>
                     <Wrench size={15} />
                   </div>
@@ -264,65 +470,113 @@ export default function OwnerDashboardPage() {
                   Open tickets pending
                 </p>
               </div>
-
             </div>
-
           </div>
 
-          {/* Quick Action Chips (Mobile / Tablet Carousel) */}
+          {/* COMMAND CENTER QUICK ACTION HUB */}
           <div>
-            <p style={{ fontSize: '0.6875rem', fontWeight: 800, textTransform: 'uppercase', color: '#64748B', letterSpacing: '0.06em', margin: '0 0 0.375rem' }}>
-              Quick Actions
+            <p
+              style={{
+                fontSize: '0.6875rem',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                color: '#64748B',
+                letterSpacing: '0.06em',
+                margin: '0 0 0.5rem',
+              }}
+            >
+              Operations & Quick Actions
             </p>
-            <div className="playstore-chips-scroll" style={{ padding: '0 0 0.25rem' }}>
-              <button
-                className="playstore-chip"
-                onClick={() => navigate('/owner/properties/new')}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}
-              >
-                <Plus size={14} color="#0F172A" /> Add Building
-              </button>
-              <button
-                className="playstore-chip"
-                onClick={() => navigate('/owner/units?new=true')}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}
-              >
-                <Plus size={14} color="#0F172A" /> Add Unit
-              </button>
-              <button
-                className="playstore-chip"
-                onClick={() => navigate('/owner/tenants/new')}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}
-              >
-                <Users size={14} color="#059669" /> Add Tenant
-              </button>
-              <button
-                className="playstore-chip"
-                onClick={() => navigate('/owner/rent/generate')}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}
-              >
-                <DollarSign size={14} color="#D97706" /> Generate Monthly Rent
-              </button>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                gap: '0.625rem',
+              }}
+            >
+              {[
+                { label: 'Generate Rent', icon: <DollarSign size={16} color="#059669" />, desc: 'Batch invoice cycle', to: '/owner/rent/generate', bg: '#ECFDF5' },
+                { label: 'Verify Claims', icon: <Clock size={16} color="#D97706" />, desc: 'Tenant payment proofs', to: '/owner/rent?status=under_review', bg: '#FFFBEB' },
+                { label: 'Record Expense', icon: <Receipt size={16} color="#DC2626" />, desc: 'Disburse OPEX bill', to: '/owner/expenses', bg: '#FEF2F2' },
+                { label: 'Add Resident', icon: <Users size={16} color="#2563EB" />, desc: 'New tenant profile', to: '/owner/tenants/new', bg: '#EFF6FF' },
+                { label: 'New Lease', icon: <FileText size={16} color="#7C3AED" />, desc: 'Rental agreement', to: '/owner/agreements', bg: '#F5F3FF' },
+                { label: 'Announcements', icon: <Megaphone size={16} color="#0891B2" />, desc: 'Broadcast to tenants', to: '/owner/announcements', bg: '#ECFEFF' },
+              ].map((act) => (
+                <button
+                  key={act.label}
+                  type="button"
+                  onClick={() => navigate(act.to)}
+                  className="card card-hover"
+                  style={{
+                    padding: '0.75rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    minHeight: 88,
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    borderRadius: '0.625rem',
+                    border: '1px solid #E2E8F0',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '0.5rem',
+                      background: act.bg,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: '0.35rem',
+                    }}
+                  >
+                    {act.icon}
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '0.8125rem', fontWeight: 800, margin: '0 0 0.1rem', color: '#0F172A' }}>
+                      {act.label}
+                    </h4>
+                    <p style={{ fontSize: '0.6875rem', color: '#64748B', margin: 0 }}>
+                      {act.desc}
+                    </p>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Monthly Financial Cash Flow Analytics Chart */}
+          {/* MONTHLY FINANCIAL CASH FLOW ANALYTICS CHART */}
           {summary.monthly_trend && summary.monthly_trend.length > 0 && (
             <div
               className="card card-hover"
               onClick={() => navigate('/owner/reports')}
-              style={{ padding: '1.25rem', width: '100%', cursor: 'pointer' }}
+              style={{ padding: '1.25rem', width: '100%', cursor: 'pointer', borderRadius: '0.875rem', border: '1px solid #E2E8F0' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <div>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#0F172A' }}>
-                    <BarChart3 size={18} color="#0F172A" /> Cash Flow Analytics
+                  <h2
+                    style={{
+                      fontSize: '1rem',
+                      fontWeight: 800,
+                      margin: 0,
+                      letterSpacing: '-0.01em',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      color: '#0F172A',
+                    }}
+                  >
+                    <BarChart3 size={18} color="#0F172A" /> Cash Flow Analytics & NOI Curve
                   </h2>
                   <p style={{ fontSize: '0.75rem', color: '#64748B', margin: '0.125rem 0 0' }}>
-                    Historical collections vs expenses • Tap to view detailed reports
+                    Historical collections vs expenses • Tap to view deep BI intelligence reports
                   </p>
                 </div>
-                <ChevronRight size={18} color="#94A3B8" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#2563EB', fontSize: '0.8125rem', fontWeight: 700 }}>
+                  <span>Full BI Hub</span>
+                  <ChevronRight size={16} />
+                </div>
               </div>
 
               <div style={{ width: '100%', height: 220 }}>
@@ -330,44 +584,85 @@ export default function OwnerDashboardPage() {
                   <AreaChart data={summary.monthly_trend} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorCollected" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#E11D48" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#E11D48" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#E11D48" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#E11D48" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                     <XAxis dataKey="month" stroke="#64748B" fontSize={11} tickLine={false} />
-                    <YAxis stroke="#64748B" fontSize={11} tickLine={false} tickFormatter={(v) => `₹${(v/1000).toFixed(0)}k`} />
+                    <YAxis
+                      stroke="#64748B"
+                      fontSize={11}
+                      tickLine={false}
+                      tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                    />
                     <Tooltip
-                      contentStyle={{ background: '#0F172A', border: '1px solid #334155', borderRadius: '10px', color: '#fff', fontSize: '12px' }}
+                      contentStyle={{
+                        background: '#0F172A',
+                        border: '1px solid #334155',
+                        borderRadius: '10px',
+                        color: '#fff',
+                        fontSize: '12px',
+                      }}
                       formatter={(value: any) => [formatCurrency(Number(value)), '']}
                     />
                     <Legend wrapperStyle={{ fontSize: '12px' }} />
-                    <Area type="monotone" dataKey="collected" name="Collected" stroke="#10B981" strokeWidth={2} fillOpacity={1} fill="url(#colorCollected)" />
-                    <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#E11D48" strokeWidth={2} fillOpacity={1} fill="url(#colorExpenses)" />
+                    <Area
+                      type="monotone"
+                      dataKey="collected"
+                      name="Collected Rent"
+                      stroke="#10B981"
+                      strokeWidth={2.5}
+                      fillOpacity={1}
+                      fill="url(#colorCollected)"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="expenses"
+                      name="Expenses"
+                      stroke="#E11D48"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorExpenses)"
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
           )}
 
-          {/* 2-Column Grid: Buildings List (Left) & Attention Alerts (Right) */}
+          {/* 2-COLUMN SECTION: BUILDINGS PORTFOLIO & ATTENTION RADAR */}
           <div className="responsive-two-col">
-            
-            {/* Buildings List */}
+            {/* Buildings List & Floor Matrix Shortcut */}
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.625rem', padding: '0 0.25rem' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '0.625rem',
+                  padding: '0 0.25rem',
+                }}
+              >
                 <h2 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, letterSpacing: '-0.01em', color: '#0F172A' }}>
-                  Buildings ({properties.length})
+                  Buildings Portfolio ({properties.length})
                 </h2>
                 <button
                   onClick={() => navigate('/owner/properties')}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0F172A', fontSize: '0.8125rem', fontWeight: 700 }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#2563EB',
+                    fontSize: '0.8125rem',
+                    fontWeight: 700,
+                  }}
                 >
-                  See all
+                  Manage all →
                 </button>
               </div>
 
@@ -383,29 +678,47 @@ export default function OwnerDashboardPage() {
                       alignItems: 'center',
                       gap: '0.875rem',
                       cursor: 'pointer',
+                      borderRadius: '0.75rem',
+                      border: '1px solid #E2E8F0',
                     }}
                   >
-                    <div style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 12,
-                      background: '#0F172A',
-                      color: 'white',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}>
+                    <div
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 12,
+                        background: '#0F172A',
+                        color: 'white',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
                       <Building2 size={20} />
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <h3 style={{ fontWeight: 800, fontSize: '0.9375rem', margin: '0 0 0.125rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0F172A' }}>
+                      <h3
+                        style={{
+                          fontWeight: 800,
+                          fontSize: '0.9375rem',
+                          margin: '0 0 0.125rem',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          color: '#0F172A',
+                        }}
+                      >
                         {p.name}
                       </h3>
-                      <p style={{ fontSize: '0.75rem', color: '#64748B', margin: 0 }}>
-                        {p.total_units} Units • {p.occupied_units} Occupied • {p.occupancy_rate}% Filled
-                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: '#64748B' }}>
+                        <span>{p.total_units} Flats</span>
+                        <span>•</span>
+                        <span style={{ color: p.occupancy_rate >= 80 ? '#059669' : '#D97706', fontWeight: 600 }}>
+                          {p.occupied_units} Occupied ({p.occupancy_rate}%)
+                        </span>
+                      </div>
                     </div>
 
                     <ChevronRight size={18} color="#94A3B8" />
@@ -414,13 +727,44 @@ export default function OwnerDashboardPage() {
               </div>
             </div>
 
-            {/* Alerts & Action Items */}
+            {/* Attention & Action Items Radar */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
               <div style={{ padding: '0 0.25rem' }}>
                 <h2 style={{ fontSize: '1rem', fontWeight: 800, margin: '0 0 0.625rem', letterSpacing: '-0.01em', color: '#0F172A' }}>
-                  Attention & Alerts
+                  Attention Radar & Alerts
                 </h2>
               </div>
+
+              {/* Pending Payment Verification Alert */}
+              {summary.alerts.under_review_invoices && summary.alerts.under_review_invoices > 0 ? (
+                <div
+                  className="card card-hover"
+                  onClick={() => navigate('/owner/rent?status=under_review')}
+                  style={{
+                    padding: '0.875rem 1rem',
+                    borderLeft: '4px solid #F59E0B',
+                    background: '#FFFBEB',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    borderRadius: '0.75rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <Clock size={18} color="#D97706" />
+                    <div>
+                      <p style={{ fontWeight: 800, fontSize: '0.875rem', margin: 0, color: '#92400E' }}>
+                        ⏳ {summary.alerts.under_review_invoices} Tenant Payment Proof(s) Awaiting Approval
+                      </p>
+                      <p style={{ fontSize: '0.6875rem', color: '#B45309', margin: '0.125rem 0 0' }}>
+                        Inspect uploaded screenshot and 1-click issue receipts
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight size={16} color="#D97706" />
+                </div>
+              ) : null}
 
               {summary.alerts.overdue_invoices > 0 ? (
                 <div
@@ -433,6 +777,7 @@ export default function OwnerDashboardPage() {
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     cursor: 'pointer',
+                    borderRadius: '0.75rem',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -442,7 +787,7 @@ export default function OwnerDashboardPage() {
                         {summary.alerts.overdue_invoices} Overdue Rent Invoice(s)
                       </p>
                       <p style={{ fontSize: '0.6875rem', color: '#64748B', margin: '0.125rem 0 0' }}>
-                        Tap to view and send payment reminders
+                        Tap to send automated WhatsApp / SMS reminders
                       </p>
                     </div>
                   </div>
@@ -452,14 +797,22 @@ export default function OwnerDashboardPage() {
                 <div
                   className="card card-hover"
                   onClick={() => navigate('/owner/rent')}
-                  style={{ padding: '0.875rem 1rem', borderLeft: '4px solid #10B981', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+                  style={{
+                    padding: '0.875rem 1rem',
+                    borderLeft: '4px solid #10B981',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    borderRadius: '0.75rem',
+                  }}
                 >
                   <div>
                     <p style={{ fontWeight: 700, fontSize: '0.8125rem', margin: 0, color: '#059669', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                      <CheckCircle2 size={15} /> No Overdue Invoices
+                      <CheckCircle2 size={15} /> All Active Invoices Up to Date
                     </p>
                     <p style={{ fontSize: '0.6875rem', color: '#64748B', margin: '0.125rem 0 0' }}>
-                      All active tenant billing is on track • Tap to manage rent
+                      Zero overdue invoices • 100% financial health
                     </p>
                   </div>
                   <ChevronRight size={16} color="#94A3B8" />
@@ -477,16 +830,17 @@ export default function OwnerDashboardPage() {
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     cursor: 'pointer',
+                    borderRadius: '0.75rem',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <Wrench size={18} color="#D97706" />
                     <div>
                       <p style={{ fontWeight: 800, fontSize: '0.875rem', margin: 0, color: '#0F172A' }}>
-                        {summary.alerts.open_maintenance} Open Maintenance Request(s)
+                        {summary.alerts.open_maintenance} Open Maintenance Ticket(s)
                       </p>
                       <p style={{ fontSize: '0.6875rem', color: '#64748B', margin: '0.125rem 0 0' }}>
-                        Requires technician review
+                        Requires technician assignment and repair conversion
                       </p>
                     </div>
                   </div>
@@ -494,9 +848,7 @@ export default function OwnerDashboardPage() {
                 </div>
               )}
             </div>
-
           </div>
-
         </div>
       )}
     </MobilePage>

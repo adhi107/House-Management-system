@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from app.config.settings import settings
 from app.database.connection import connect_db, close_db
-from app.api.routes import auth, dashboard, properties, units, tenants, rent, maintenance, super_admin
+from app.api.routes import auth, dashboard, properties, units, tenants, rent, maintenance, super_admin, smtp
 from app.api.routes.misc import (
     router as document_router,
     expense_router,
@@ -62,6 +62,7 @@ app.include_router(units.router, prefix=API_PREFIX)
 app.include_router(tenants.router, prefix=API_PREFIX)
 app.include_router(rent.router, prefix=API_PREFIX)
 app.include_router(maintenance.router, prefix=API_PREFIX)
+app.include_router(smtp.router, prefix=API_PREFIX)
 app.include_router(document_router, prefix=API_PREFIX)
 app.include_router(expense_router, prefix=API_PREFIX)
 app.include_router(notification_router, prefix=API_PREFIX)

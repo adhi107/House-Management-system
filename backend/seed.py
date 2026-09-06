@@ -398,6 +398,61 @@ async def seed():
         "created_at": utcnow(),
     })
 
+    print("Creating Notifications...")
+    await db.notifications.insert_many([
+        {
+            "organization_id": str(org_a_id),
+            "type": "payment_claimed",
+            "title": "Payment Claimed: ₹17,500 by Rajeev Adithya",
+            "message": "Tenant Rajeev Adithya reported a payment of ₹17,500 (UPI Ref: UPI/984928192839/HDFC) for Flat 101 rent. Ready for verification.",
+            "read": False,
+            "created_at": utcnow() - timedelta(minutes=45),
+        },
+        {
+            "organization_id": str(org_a_id),
+            "type": "maintenance_request",
+            "title": "New Issue #MR-0001: Water leakage in Master Bathroom",
+            "message": "Resident Rajeev Adithya reported a plumbing issue for Flat 101 (Priority: HIGH).",
+            "read": False,
+            "created_at": utcnow() - timedelta(hours=2),
+        },
+        {
+            "organization_id": str(org_a_id),
+            "type": "agreement",
+            "title": "Lease Agreement Active: #AGR-0001",
+            "message": "Rental agreement for Flat 101 (Tenant: Rajeev Adithya) is signed and active with 30-day notice period.",
+            "read": True,
+            "created_at": utcnow() - timedelta(days=1),
+        },
+        {
+            "organization_id": str(org_a_id),
+            "type": "announcement",
+            "title": "Platform Cloud Migration Complete",
+            "message": "Automated monthly invoicing, UPI QR reconcile, and WhatsApp receipt generator are live across Sunrise Heights.",
+            "read": True,
+            "created_at": utcnow() - timedelta(days=2),
+        },
+        # Tenant A notifications
+        {
+            "organization_id": str(org_a_id),
+            "tenant_id": str(tenant_a1_id),
+            "type": "rent_due",
+            "title": f"Rent Invoice Generated ({curr_month})",
+            "message": "Your monthly rent invoice of ₹17,500 is generated and due on the 5th of this month.",
+            "read": False,
+            "created_at": utcnow() - timedelta(hours=5),
+        },
+        {
+            "organization_id": str(org_a_id),
+            "tenant_id": str(tenant_a1_id),
+            "type": "maintenance_update",
+            "title": "Maintenance Ticket #MR-0001 Assigned",
+            "message": "Your bathroom plumbing ticket has been assigned to technician Ramesh. Scheduled inspection today.",
+            "read": False,
+            "created_at": utcnow() - timedelta(hours=1),
+        },
+    ])
+
     print("Creating Audit Logs & Platform Settings...")
     await db.audit_logs.insert_many([
         {

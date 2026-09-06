@@ -1,70 +1,130 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Plus, Wrench, ChevronRight, Save, X, AlertCircle } from 'lucide-react'
-import { maintenanceApi, propertyApi, unitApi } from '../../api/client'
+import { useNavigate, useParams } from 'react-router-dom'
+import {
+  Plus,
+  Wrench,
+  ChevronRight,
+  Save,
+  X,
+  AlertCircle,
+  Clock,
+  CheckCircle2,
+  Phone,
+  MessageSquare,
+  DollarSign,
+  UserCheck,
+  Building2,
+  FileText,
+  Trash2,
+  ArrowRight,
+  Share2,
+  Sparkles,
+  Layers,
+  Filter
+} from 'lucide-react'
+import { maintenanceApi, propertyApi, unitApi, expenseApi } from '../../api/client'
 import { MaintenanceRequest, Property, Unit } from '../../types'
 import { MobilePage } from '../../components/layout/AppShell'
 import { MobileHeader } from '../../components/navigation'
-import { EmptyState, ErrorState, SkeletonCard, StatusBadge, formatDate, Modal } from '../../components/ui'
+import { EmptyState, ErrorState, SkeletonCard, StatusBadge, formatDate, Modal, formatCurrency } from '../../components/ui'
 import { useToast } from '../../contexts/ToastContext'
 import { AxiosError } from 'axios'
 
 const STATUS_TABS = [
-  { key: '', label: 'All' },
-  { key: 'open', label: 'Open' },
-  { key: 'in_progress', label: 'In Progress' },
-  { key: 'resolved', label: 'Resolved' },
+  { key: '', label: 'All Tickets' },
+  { key: 'open', label: '🔴 Open' },
+  { key: 'in_progress', label: '🟡 In Progress' },
+  { key: 'resolved', label: '🟢 Resolved' },
+  { key: 'closed', label: 'Closed' },
 ]
 
 const CATEGORIES = [
   { key: 'plumbing', label: 'Plumbing', icon: '🔧' },
   { key: 'electrical', label: 'Electrical', icon: '⚡' },
-  { key: 'water', label: 'Water', icon: '💧' },
+  { key: 'water', label: 'Water Supply', icon: '💧' },
   { key: 'ac', label: 'AC / HVAC', icon: '❄️' },
   { key: 'cleaning', label: 'Cleaning', icon: '🧹' },
   { key: 'internet', label: 'Internet / Wi-Fi', icon: '🌐' },
   { key: 'appliance', label: 'Appliance', icon: '📺' },
-  { key: 'other', label: 'General / Other', icon: '🔨' },
+  { key: 'other', label: 'General Repair', icon: '🔨' },
 ]
 
 const PRIORITIES = [
-  { key: 'low', label: 'Low', color: '#64748B' },
-  { key: 'medium', label: 'Medium', color: '#0EA5E9' },
-  { key: 'high', label: 'High', color: '#F59E0B' },
-  { key: 'urgent', label: 'Urgent', color: '#EF4444' },
+  { key: 'low', label: 'Low', color: '#64748B', bg: '#F1F5F9' },
+  { key: 'medium', label: 'Medium', color: '#0EA5E9', bg: '#E0F2FE' },
+  { key: 'high', label: 'High', color: '#F59E0B', bg: '#FEF3C7' },
+  { key: 'urgent', label: 'Urgent', color: '#EF4444', bg: '#FEE2E2' },
 ]
 
 export default function MaintenancePage() {
   const navigate = useNavigate()
+  const params = useParams()
+  const { success, error, info } = useToast()
+
   const [requests, setRequests] = useState<MaintenanceRequest[]>([])
+  const [properties, setProperties] = useState<Property[]>([])
+  const [selectedPropertyFilter, setSelectedPropertyFilter] = useState('')
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const [hasError, setHasError] = useState(false)
   const [activeTab, setActiveTab] = useState('')
   const [total, setTotal] = useState(0)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [selectedTicket, setSelectedTicket] = useState<MaintenanceRequest | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const load = async (status = activeTab) => {
     setIsLoading(true)
-    setError(false)
+    setHasError(false)
     try {
-      const res = await maintenanceApi.list({ status: status || undefined })
-      setRequests(res.data.data || [])
-      setTotal(res.data.total || 0)
+      const [res, propRes] = await Promise.all([
+        maintenanceApi.list({ status: status || undefined }),
+        propertyApi.list().catch(() => ({ data: { data: [] } })),
+      ])
+      const list = res.data.data || []
+      setRequests(list)
+      setTotal(res.data.total || list.length)
+      setProperties(propRes.data.data || [])
+
+      if (params.id) {
+        const matched = list.find((r: MaintenanceRequest) => r.id === params.id)
+        if (matched) setSelectedTicket(matched)
+      }
     } catch {
-      setError(true)
+      setHasError(true)
     } finally {
       setIsLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [activeTab])
+  useEffect(() => {
+    load()
+  }, [activeTab])
+
+  const filteredRequests = requests.filter((r) => {
+    if (selectedPropertyFilter && r.property_id !== selectedPropertyFilter) return false
+    if (!searchQuery) return true
+    const q = searchQuery.toLowerCase()
+    return (
+      r.title.toLowerCase().includes(q) ||
+      (r.description || '').toLowerCase().includes(q) ||
+      (r.tenant_name || '').toLowerCase().includes(q) ||
+      (r.unit_number || '').toLowerCase().includes(q) ||
+      r.request_number.toLowerCase().includes(q)
+    )
+  })
+
+  // Urgent and Open Count Metrics
+  const openCount = requests.filter((r) => r.status === 'open').length
+  const urgentCount = requests.filter((r) => r.priority === 'urgent' && r.status !== 'closed' && r.status !== 'resolved').length
+  const inProgressCount = requests.filter((r) => r.status === 'in_progress').length
+  const resolvedCount = requests.filter((r) => r.status === 'resolved').length
 
   return (
     <MobilePage
       role="owner"
       header={
         <MobileHeader
-          title="Maintenance Requests"
+          title="Maintenance & Repairs"
           showBack
           rightAction={
             <button
@@ -82,25 +142,125 @@ export default function MaintenancePage() {
       <div className="module-header hidden-mobile">
         <div className="module-header-info">
           <h1 className="module-header-title">
-            Maintenance Requests ({total})
+            Maintenance & Repairs Dispatch ({total})
           </h1>
           <p className="module-header-subtitle">
-            Track plumbing, electrical, and repair tickets across all your units
+            Manage plumbing, electrical, and repair tickets, assign technicians, track repair costs, and log expenses
           </p>
         </div>
 
-        <div className="module-header-action">
+        <div className="module-header-action" style={{ display: 'flex', gap: '0.5rem' }}>
           <button
             className="btn btn-primary"
             onClick={() => setShowAddModal(true)}
-            style={{ gap: '0.375rem' }}
+            style={{ gap: '0.375rem', backgroundColor: '#2563EB', borderColor: '#2563EB', fontWeight: 700 }}
           >
-            <Plus size={16} /> New Request
+            <Plus size={16} /> Log Repair Ticket
           </button>
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* QUICK STATUS KPI METRICS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem' }}>
+        
+        <div
+          onClick={() => setActiveTab('open')}
+          className="card card-hover"
+          style={{
+            padding: '0.875rem',
+            background: activeTab === 'open' ? '#FEF2F2' : '#FFFFFF',
+            borderLeft: '4px solid #EF4444',
+            cursor: 'pointer',
+          }}
+        >
+          <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#EF4444', textTransform: 'uppercase' }}>Open Tickets</span>
+          <p style={{ fontSize: '1.375rem', fontWeight: 900, margin: '0.15rem 0 0', color: '#0F172A' }}>{openCount}</p>
+        </div>
+
+        <div
+          onClick={() => setActiveTab('in_progress')}
+          className="card card-hover"
+          style={{
+            padding: '0.875rem',
+            background: activeTab === 'in_progress' ? '#FEF3C7' : '#FFFFFF',
+            borderLeft: '4px solid #F59E0B',
+            cursor: 'pointer',
+          }}
+        >
+          <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#D97706', textTransform: 'uppercase' }}>In Progress</span>
+          <p style={{ fontSize: '1.375rem', fontWeight: 900, margin: '0.15rem 0 0', color: '#0F172A' }}>{inProgressCount}</p>
+        </div>
+
+        <div
+          onClick={() => setActiveTab('resolved')}
+          className="card card-hover"
+          style={{
+            padding: '0.875rem',
+            background: activeTab === 'resolved' ? '#ECFDF5' : '#FFFFFF',
+            borderLeft: '4px solid #10B981',
+            cursor: 'pointer',
+          }}
+        >
+          <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase' }}>Resolved</span>
+          <p style={{ fontSize: '1.375rem', fontWeight: 900, margin: '0.15rem 0 0', color: '#0F172A' }}>{resolvedCount}</p>
+        </div>
+
+        {urgentCount > 0 && (
+          <div
+            className="card"
+            style={{
+              padding: '0.875rem',
+              background: '#FEE2E2',
+              borderLeft: '4px solid #DC2626',
+              border: '1.5px solid #FCA5A5',
+            }}
+          >
+            <span style={{ fontSize: '0.6875rem', fontWeight: 800, color: '#991B1B', textTransform: 'uppercase' }}>⚠️ Urgent Attention</span>
+            <p style={{ fontSize: '1.375rem', fontWeight: 900, margin: '0.15rem 0 0', color: '#991B1B' }}>{urgentCount}</p>
+          </div>
+        )}
+
+      </div>
+
+      {/* FILTER & SEARCH BAR */}
+      <div
+        className="card"
+        style={{
+          padding: '0.875rem 1rem',
+          marginBottom: '1rem',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '0.625rem',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: '#FFFFFF',
+        }}
+      >
+        <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+          <input
+            type="search"
+            className="input"
+            style={{ height: 38, fontSize: '0.8125rem' }}
+            placeholder="Search tickets by title, description, flat #..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+
+        <select
+          className="input"
+          style={{ height: 38, width: 'auto', minWidth: 160, fontSize: '0.8125rem' }}
+          value={selectedPropertyFilter}
+          onChange={(e) => setSelectedPropertyFilter(e.target.value)}
+        >
+          <option value="">🏢 All Buildings</option>
+          {properties.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Status Tabs */}
       <div className="tabs-scroll" style={{ marginBottom: '1rem' }}>
         {STATUS_TABS.map((t) => (
           <button
@@ -113,27 +273,17 @@ export default function MaintenancePage() {
         ))}
       </div>
 
-      <div style={{ marginBottom: '0.5rem', fontSize: '0.8125rem', color: 'rgb(var(--muted-foreground))', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>{total} request{total !== 1 ? 's' : ''}</span>
-        <button
-          className="btn btn-secondary btn-sm mobile-only"
-          onClick={() => setShowAddModal(true)}
-          style={{ gap: '0.25rem', fontSize: '0.75rem' }}
-        >
-          <Plus size={13} /> New Request
-        </button>
-      </div>
-
+      {/* Ticket List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)
-        ) : error ? (
-          <ErrorState onRetry={load} />
-        ) : requests.length === 0 ? (
+        ) : hasError ? (
+          <ErrorState onRetry={() => load(activeTab)} />
+        ) : filteredRequests.length === 0 ? (
           <EmptyState
-            icon={<Wrench size={32} />}
-            title={activeTab === 'resolved' ? 'No resolved requests' : activeTab ? `No ${activeTab.replace('_', ' ')} requests` : 'Everything looks good 🎉'}
-            description="No active maintenance requests."
+            icon={<Wrench size={36} />}
+            title={activeTab === 'resolved' ? 'No resolved tickets' : activeTab ? `No ${activeTab.replace('_', ' ')} requests` : 'Everything is working smoothly! 🎉'}
+            description="No maintenance tickets found for this filter."
             action={
               <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
                 <Plus size={18} /> New Request
@@ -141,13 +291,17 @@ export default function MaintenancePage() {
             }
           />
         ) : (
-          requests.map((r) => (
-            <MaintenanceCard key={r.id} request={r} onClick={() => navigate(`/owner/maintenance/${r.id}`)} />
+          filteredRequests.map((r) => (
+            <EnhancedMaintenanceCard
+              key={r.id}
+              request={r}
+              onClick={() => setSelectedTicket(r)}
+            />
           ))
         )}
       </div>
 
-      {/* Add Maintenance Modal */}
+      {/* NEW TICKET MODAL */}
       <AddMaintenanceModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
@@ -156,18 +310,22 @@ export default function MaintenancePage() {
           load()
         }}
       />
+
+      {/* TICKET DETAIL & ACTION MODAL */}
+      {selectedTicket && (
+        <MaintenanceDetailModal
+          ticket={selectedTicket}
+          isOpen={!!selectedTicket}
+          onClose={() => setSelectedTicket(null)}
+          onRefresh={() => load(activeTab)}
+        />
+      )}
     </MobilePage>
   )
 }
 
-function MaintenanceCard({ request, onClick }: { request: MaintenanceRequest; onClick: () => void }) {
-  const priorityColor: Record<string, string> = {
-    urgent: '#EF4444',
-    high: '#F59E0B',
-    medium: '#0EA5E9',
-    low: '#64748B',
-  }
-
+function EnhancedMaintenanceCard({ request, onClick }: { request: MaintenanceRequest; onClick: () => void }) {
+  const priorityInfo = PRIORITIES.find((p) => p.key === request.priority) || PRIORITIES[1]
   const categoryItem = CATEGORIES.find((c) => c.key === request.category)
 
   return (
@@ -175,39 +333,256 @@ function MaintenanceCard({ request, onClick }: { request: MaintenanceRequest; on
       onClick={onClick}
       className="card card-hover"
       style={{
-        width: '100%', padding: '1rem', textAlign: 'left', cursor: 'pointer',
-        borderLeft: `3.5px solid ${priorityColor[request.priority] || '#CBD5E1'}`,
+        width: '100%',
+        padding: '1.125rem',
+        textAlign: 'left',
+        cursor: 'pointer',
+        background: '#FFFFFF',
+        borderLeft: `4px solid ${priorityInfo.color}`,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-        <span style={{ fontSize: '1.75rem', flexShrink: 0 }}>{categoryItem?.icon || '🔨'}</span>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.875rem' }}>
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: '0.75rem',
+            background: priorityInfo.bg,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '1.5rem',
+            flexShrink: 0,
+          }}
+        >
+          {categoryItem?.icon || '🔨'}
+        </div>
+
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-            <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>
-              #{request.request_number}
-            </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+              <span style={{ fontSize: '0.6875rem', fontWeight: 800, color: '#2563EB', background: '#EFF6FF', padding: '0.1rem 0.35rem', borderRadius: 4 }}>
+                #{request.request_number}
+              </span>
+              <span style={{ fontSize: '0.6875rem', fontWeight: 800, textTransform: 'uppercase', color: priorityInfo.color }}>
+                • {priorityInfo.label} Priority
+              </span>
+            </div>
             <StatusBadge status={request.status} />
           </div>
-          <h3 style={{ fontWeight: 700, fontSize: '0.9375rem', margin: '0 0 0.25rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0F172A' }}>
+
+          <h3 style={{ fontWeight: 800, fontSize: '1rem', margin: '0 0 0.2rem', color: '#0F172A' }}>
             {request.title}
           </h3>
-          <p style={{ fontSize: '0.8125rem', color: '#64748B', margin: '0 0 0.375rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+
+          <p style={{ fontSize: '0.8125rem', color: '#64748B', margin: '0 0 0.5rem', lineHeight: 1.4 }}>
             Flat {request.unit_number} • {request.property_name}
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            {request.tenant_name && (
-              <span style={{ fontSize: '0.75rem', color: '#64748B' }}>
-                by {request.tenant_name}
-              </span>
-            )}
-            <span style={{ fontSize: '0.75rem', color: '#94A3B8', marginLeft: 'auto' }}>
-              {formatDate(request.created_at)}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #F1F5F9', paddingTop: '0.5rem', fontSize: '0.75rem' }}>
+            <span style={{ color: '#64748B' }}>
+              Reported by: <strong style={{ color: '#0F172A' }}>{request.tenant_name || 'Resident'}</strong>
             </span>
+            <span style={{ color: '#94A3B8' }}>{formatDate(request.created_at)}</span>
           </div>
         </div>
-        <ChevronRight size={18} style={{ color: '#94A3B8', flexShrink: 0, marginTop: 4 }} />
       </div>
     </div>
+  )
+}
+
+function MaintenanceDetailModal({
+  ticket,
+  isOpen,
+  onClose,
+  onRefresh,
+}: {
+  ticket: MaintenanceRequest
+  isOpen: boolean
+  onClose: () => void
+  onRefresh: () => void
+}) {
+  const { success, error, info } = useToast()
+  const [status, setStatus] = useState(ticket.status)
+  const [technician, setTechnician] = useState(ticket.assigned_to || '')
+  const [estimatedCost, setEstimatedCost] = useState('')
+  const [resolutionNotes, setResolutionNotes] = useState(ticket.notes || '')
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [isConvertingExpense, setIsConvertingExpense] = useState(false)
+
+  const handleUpdateTicket = async () => {
+    setIsUpdating(true)
+    try {
+      await maintenanceApi.update(ticket.id, {
+        status,
+        assigned_to: technician.trim() || undefined,
+        notes: resolutionNotes.trim() || undefined,
+      })
+      success('Ticket updated successfully!')
+      onRefresh()
+      onClose()
+    } catch (err: any) {
+      error(err?.response?.data?.detail || 'Failed to update ticket')
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  const handleConvertToExpense = async () => {
+    const cost = parseFloat(estimatedCost)
+    if (!cost || cost <= 0) {
+      error('Please enter a valid repair expense amount (₹)')
+      return
+    }
+
+    setIsConvertingExpense(true)
+    try {
+      await expenseApi.create({
+        property_id: ticket.property_id,
+        category: 'maintenance',
+        amount: cost,
+        description: `Repair: ${ticket.title} (Flat ${ticket.unit_number || 'N/A'} - Ticket #${ticket.request_number})`,
+        vendor: technician || 'Service Technician',
+        date: new Date().toISOString().slice(0, 10),
+      })
+      success(`₹${cost.toLocaleString('en-IN')} added to Property Expenses!`)
+      setEstimatedCost('')
+    } catch {
+      error('Failed to log expense')
+    } finally {
+      setIsConvertingExpense(false)
+    }
+  }
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`Maintenance Ticket #${ticket.request_number}`}
+      maxWidth="580px"
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        
+        {/* Ticket Header Card */}
+        <div style={{ background: '#F8FAFC', padding: '1rem', borderRadius: '0.75rem', border: '1px solid #E2E8F0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.35rem' }}>
+            <div>
+              <span style={{ fontSize: '0.6875rem', fontWeight: 800, textTransform: 'uppercase', color: '#2563EB', background: '#EFF6FF', padding: '0.1rem 0.4rem', borderRadius: 4 }}>
+                {ticket.category.toUpperCase()}
+              </span>
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 800, margin: '0.25rem 0 0.1rem', color: '#0F172A' }}>
+                {ticket.title}
+              </h3>
+              <p style={{ fontSize: '0.8125rem', color: '#64748B', margin: 0 }}>
+                Flat {ticket.unit_number} • {ticket.property_name}
+              </p>
+            </div>
+            <StatusBadge status={ticket.status} />
+          </div>
+
+          <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #E2E8F0', fontSize: '0.8125rem', color: '#334155', lineHeight: 1.5 }}>
+            <p style={{ margin: '0 0 0.25rem', fontWeight: 700, color: '#0F172A' }}>Description:</p>
+            {ticket.description}
+          </div>
+        </div>
+
+        {/* Status & Technician Assignment Controls */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+          <div className="form-group">
+            <label className="input-label">Update Ticket Status</label>
+            <select
+              className="input"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as any)}
+            >
+              <option value="open">🔴 Open (Pending Action)</option>
+              <option value="in_progress">🟡 In Progress (Assigned)</option>
+              <option value="on_hold">⏸️ On Hold</option>
+              <option value="resolved">🟢 Resolved (Work Complete)</option>
+              <option value="closed">✔️ Closed</option>
+              <option value="rejected">❌ Rejected</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="input-label">Assigned Technician / Vendor</label>
+            <input
+              type="text"
+              className="input"
+              placeholder="e.g. Ramesh (Plumber) 9876543210"
+              value={technician}
+              onChange={(e) => setTechnician(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Resolution Notes */}
+        <div className="form-group">
+          <label className="input-label">Technician Resolution / Action Notes</label>
+          <textarea
+            className="input"
+            rows={2}
+            placeholder="e.g. Replaced faulty washer valve. Verified no leakages."
+            value={resolutionNotes}
+            onChange={(e) => setResolutionNotes(e.target.value)}
+            style={{ resize: 'none' }}
+          />
+        </div>
+
+        {/* 1-Click Convert Repair Cost to Property Expense */}
+        <div style={{ background: '#ECFDF5', padding: '0.875rem 1rem', borderRadius: '0.5rem', border: '1px solid #A7F3D0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <div>
+              <p style={{ fontWeight: 800, fontSize: '0.8125rem', margin: 0, color: '#065F46' }}>
+                💳 Log Repair Cost to Property Expenses
+              </p>
+              <p style={{ fontSize: '0.6875rem', color: '#047857', margin: 0 }}>
+                Directly writes this repair bill into your operating expense ledger
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <input
+              type="number"
+              min="0"
+              className="input"
+              style={{ flex: 1, height: 36, fontSize: '0.8125rem' }}
+              placeholder="Repair cost in ₹ (e.g. 750)"
+              value={estimatedCost}
+              onChange={(e) => setEstimatedCost(e.target.value)}
+            />
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              style={{ backgroundColor: '#059669', borderColor: '#059669', gap: '0.25rem' }}
+              onClick={handleConvertToExpense}
+              disabled={isConvertingExpense}
+            >
+              {isConvertingExpense ? 'Logging...' : '+ Add Expense'}
+            </button>
+          </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', borderTop: '1px solid #F1F5F9', paddingTop: '1rem' }}>
+          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={isUpdating}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleUpdateTicket}
+            disabled={isUpdating}
+            style={{ gap: '0.375rem' }}
+          >
+            <Save size={15} />
+            {isUpdating ? 'Saving...' : 'Save Ticket Updates'}
+          </button>
+        </div>
+
+      </div>
+    </Modal>
   )
 }
 
@@ -287,7 +662,7 @@ function AddMaintenanceModal({
         title: title.trim(),
         description: description.trim(),
       })
-      success('Maintenance request created successfully!')
+      success('Maintenance ticket logged successfully!')
       onSuccess()
     } catch (err) {
       const axiosErr = err as AxiosError<{ detail: string }>
@@ -298,7 +673,7 @@ function AddMaintenanceModal({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="New Maintenance Request" maxWidth="520px">
+    <Modal isOpen={isOpen} onClose={onClose} title="Log New Maintenance Ticket" maxWidth="520px">
       <form onSubmit={handleSubmit}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
           <div className="form-group">
